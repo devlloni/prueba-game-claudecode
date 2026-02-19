@@ -32,6 +32,8 @@ const config = {
     autoCenter: Phaser.Scale.CENTER_BOTH,
     width: 800,
     height: 480,
+    // Expand the parent container to fill the full viewport on mobile
+    expandParent: true,
   },
 
   physics: {

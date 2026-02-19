@@ -37,11 +37,13 @@ class Player extends Phaser.Physics.Arcade.Sprite {
 
   _updateBody() {
     if (this.state === 'big' || this.state === 'star') {
-      this.body.setSize(20, 44);
-      this.body.setOffset(2, 4);
+      // Big sprite: 22×32px. offset(3,6) + height 26 = 32 → bottom-aligned, no floating
+      this.body.setSize(16, 26);
+      this.body.setOffset(3, 6);
     } else {
-      this.body.setSize(14, 26);
-      this.body.setOffset(1, 4);
+      // Small sprite: 18×18px. offset(3,4) + height 14 = 18 → bottom-aligned, no floating
+      this.body.setSize(12, 14);
+      this.body.setOffset(3, 4);
     }
   }
 

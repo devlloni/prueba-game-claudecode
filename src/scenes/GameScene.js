@@ -295,8 +295,9 @@ class GameScene extends Phaser.Scene {
 
   /* ─────────────────── COLLISION CALLBACKS ─────────────────────────────────── */
   _onBrickHit(player, brick) {
-    // Only when hitting from below
-    if (player.body.velocity.y >= 0) return;
+    // Only when hitting from below (head bump) — blocked.up is true only when the
+    // player's top physically touches the block, ignoring side collisions while airborne
+    if (!player.body.blocked.up) return;
     if (player.isBig()) {
       // Break the brick
       this._breakBrick(brick);
@@ -335,7 +336,7 @@ class GameScene extends Phaser.Scene {
 
   _onQuestionHit(player, qblock) {
     if (qblock.used) return;
-    if (player.body.velocity.y >= 0) return;
+    if (!player.body.blocked.up) return;
 
     qblock.used = true;
     qblock.setTexture('tile_empty');
