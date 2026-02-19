@@ -49,9 +49,25 @@ class Player extends Phaser.Physics.Arcade.Sprite {
 
   grow() {
     if (this.state === 'small') {
+      // Save body.bottom before any change so we can keep feet planted
+      const oldBottom = this.body.bottom;
+
+      // Kill any lingering damage-flash tween to avoid alpha stuck at 0.2
+      this.scene.tweens.killTweensOf(this);
+      this.setAlpha(1);
+
       this.state = 'big';
-      this._updateBody();
-      this.scene.sound && this.scene.sound.play && null; // placeholder
+      this._updateBody(); // body: size(16,26), offset(3,6)
+
+      // Force big texture NOW so displayHeight (32) is immediately correct.
+      // Without this, the body extends below the 18px small sprite for one frame → sinks.
+      this.setTexture('player_big_idle');
+
+      // Adjust y so body.bottom stays at the same world position (feet don't move).
+      // body.bottom = y - displayHeight/2 + offsetY + bodyH = y - 16 + 6 + 26 = y + 16
+      // Solve: y + 16 = oldBottom  →  y = oldBottom - 16
+      this.y = oldBottom - 16;
+
       this.scene.tweens.add({
         targets: this,
         scaleX: { from: 1.3, to: 1 },
@@ -83,7 +99,8 @@ class Player extends Phaser.Physics.Arcade.Sprite {
         alpha: { from: 0.2, to: 1 },
         duration: 100,
         repeat: 8,
-        yoyo: true
+        yoyo: true,
+        onComplete: () => { if (!this.isDead) this.setAlpha(1); }
       });
     } else {
       this.die();
@@ -168,7 +185,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
 
     // Jump
     if (jump && !this.jumpPressed && onGround) {
-      this.body.setVelocityY(-520);
+      this.body.setVelocityY(this.isBig() ? -580 : -520);
       this.jumpPressed = true;
       this.jumpHeld = true;
       window.Sounds && window.Sounds.jump();

@@ -612,7 +612,7 @@ class GameScene extends Phaser.Scene {
     // ── Timer ──────────────────────────────────────────────────────────────────
     if (!this.playerDead && !this.flagTouched) {
       this.timerTick += delta;
-      if (this.timerTick >= 400) {
+      if (this.timerTick >= 1000) {
         this.timerTick = 0;
         this.timer = Math.max(0, this.timer - 1);
         this.events.emit('time-update', this.timer);
