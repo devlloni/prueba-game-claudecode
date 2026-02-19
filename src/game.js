@@ -1,26 +1,27 @@
 /**
- * game.js - Phaser 3 game configuration and entry point.
- * All scenes and globals are loaded via script tags in index.html.
+ * game.js – Phaser 3 config + entry point.
+ *
+ * Screen-fitting strategy:
+ *   • Logical height is always 480 px (matches all level data).
+ *   • Logical width = round(480 × screen-aspect-ratio), clamped to [640, 1280].
+ *   • Phaser Scale.FIT scales this logical canvas to fill the physical screen
+ *     with the same aspect ratio → zero letterboxing in landscape.
  */
 
-// Responsive sizing
-function getGameSize() {
-  const maxW = 800, maxH = 480;
-  const sw = window.innerWidth, sh = window.innerHeight;
-  const ratio = maxW / maxH;
-  let w = sw, h = sw / ratio;
-  if (h > sh) { h = sh; w = h * ratio; }
-  // On mobile, use full screen
-  if (w > maxW) { w = maxW; h = maxH; }
-  return { width: Math.floor(w), height: Math.floor(h) };
+function getGameDimensions() {
+  const sw = window.innerWidth;
+  const sh = window.innerHeight;
+  const H  = 480;
+  // Use the landscape ratio regardless of current orientation
+  const ratio = Math.max(sw, sh) / Math.min(sw, sh);
+  const W = Math.max(640, Math.min(1280, Math.round(H * ratio)));
+  return { width: W, height: H };
 }
 
-const { width, height } = getGameSize();
+const { width: GAME_W, height: GAME_H } = getGameDimensions();
 
 const config = {
   type: Phaser.AUTO,
-  width: 800,
-  height: 480,
   parent: 'game-container',
   backgroundColor: '#4FC3F7',
   pixelArt: true,
@@ -30,18 +31,14 @@ const config = {
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
-    width: 800,
-    height: 480,
-    // Expand the parent container to fill the full viewport on mobile
+    width:  GAME_W,
+    height: GAME_H,
     expandParent: true,
   },
 
   physics: {
     default: 'arcade',
-    arcade: {
-      gravity: { y: 800 },
-      debug: false,
-    }
+    arcade: { gravity: { y: 800 }, debug: false }
   },
 
   scene: [
@@ -55,24 +52,21 @@ const config = {
   ],
 
   callbacks: {
-    postBoot: function (game) {
-      // Ensure canvas is crisp on high-DPI screens
-      const canvas = game.canvas;
-      canvas.style.imageRendering = 'pixelated';
+    postBoot(game) {
+      game.canvas.style.imageRendering = 'pixelated';
     }
   }
 };
 
-// Create the game
 window.game = new Phaser.Game(config);
 
-// Handle resize
+// Re-fit when device rotates or browser chrome changes
 window.addEventListener('resize', () => {
   window.game.scale.refresh();
 });
 
-// Prevent arrow key scrolling on desktop
+// Prevent arrow-key / space scrolling on desktop
 window.addEventListener('keydown', (e) => {
-  const keys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '];
-  if (keys.includes(e.key)) e.preventDefault();
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key))
+    e.preventDefault();
 }, { passive: false });

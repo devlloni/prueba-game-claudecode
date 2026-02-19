@@ -98,6 +98,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     this.body.setVelocityY(-500);
     this.body.setAllowGravity(true);
     this.setTexture('player_dead');
+    window.Sounds && window.Sounds.death();
     this.scene.events.emit('player-died');
   }
 
@@ -170,6 +171,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       this.body.setVelocityY(-520);
       this.jumpPressed = true;
       this.jumpHeld = true;
+      window.Sounds && window.Sounds.jump();
     }
     if (!jump) {
       this.jumpPressed = false;

@@ -29,7 +29,7 @@ class GameScene extends Phaser.Scene {
     if (!ld) { this.scene.start('WinScene', { score: this.score, coins: this.coins, lives: this.lives }); return; }
 
     this.ld = ld;
-    const W = ld.width, H = 480;
+    const W = ld.width, H = this.scale.height;
 
     // ── Physics world ──────────────────────────────────────────────────────────
     this.physics.world.setBounds(0, 0, W, H + 400); // extra height for falling
@@ -86,6 +86,9 @@ class GameScene extends Phaser.Scene {
       this.mobile.create();
       this.mobile.show();
     }
+
+    // ── Sound ────────────────────────────────────────────────────────────────────
+    window.Sounds && window.Sounds.startBgMusic();
 
     // ── Colliders ────────────────────────────────────────────────────────────────
     this._setupColliders();
@@ -308,6 +311,7 @@ class GameScene extends Phaser.Scene {
   }
 
   _breakBrick(brick) {
+    window.Sounds && window.Sounds.brickBreak();
     // Particle fragments
     for (let i = 0; i < 6; i++) {
       const frag = this.add.image(brick.x, brick.y, 'brick_frag');
@@ -324,6 +328,7 @@ class GameScene extends Phaser.Scene {
   }
 
   _bounceTile(tile) {
+    window.Sounds && window.Sounds.blockHit();
     // Brief upward tween
     this.tweens.add({
       targets: tile,
@@ -371,20 +376,24 @@ class GameScene extends Phaser.Scene {
         player.grow();
         this._addScore(1000);
         this._showScorePopup(player.x, player.y - 30, '+1000');
+        window.Sounds && window.Sounds.powerup();
         break;
       case 'star':
         player.activateStar();
         this._addScore(1000);
         this._showScorePopup(player.x, player.y - 30, 'STAR!');
+        window.Sounds && window.Sounds.starPowerup();
         break;
       case 'flower':
         player.grow();
         this._addScore(1000);
         this._showScorePopup(player.x, player.y - 30, '+1000');
+        window.Sounds && window.Sounds.powerup();
         break;
       case 'coin':
         this._addCoins(1);
         this._addScore(200);
+        window.Sounds && window.Sounds.coin();
         break;
     }
 
@@ -396,6 +405,7 @@ class GameScene extends Phaser.Scene {
   }
 
   _onCoinCollect(player, coin) {
+    window.Sounds && window.Sounds.coin();
     this._addCoins(1);
     this._addScore(100);
     // Particle
@@ -428,6 +438,7 @@ class GameScene extends Phaser.Scene {
         }
       } else {
         enemy.stomp();
+        window.Sounds && window.Sounds.stomp();
         this._addScore(pts);
         this._showScorePopup(enemy.x, enemy.y - 20, '+' + pts);
       }
@@ -513,6 +524,8 @@ class GameScene extends Phaser.Scene {
     this.events.emit('lives-update', this.lives);
 
     if (this.lives <= 0) {
+      window.Sounds && window.Sounds.stopBgMusic();
+      window.Sounds && window.Sounds.gameOver();
       this.scene.stop('HUDScene');
       this.mobile && this.mobile.destroy();
       this.scene.start('GameOverScene', {
@@ -520,6 +533,7 @@ class GameScene extends Phaser.Scene {
       });
     } else {
       // Restart current level
+      window.Sounds && window.Sounds.stopBgMusic();
       this.scene.stop('HUDScene');
       this.mobile && this.mobile.destroy();
       this.scene.restart({ level: this.levelIndex, lives: this.lives, score: this.score, coins: this.coins });
@@ -530,6 +544,8 @@ class GameScene extends Phaser.Scene {
   _levelComplete() {
     if (this.levelDone) return;
     this.levelDone = true;
+    window.Sounds && window.Sounds.stopBgMusic();
+    window.Sounds && window.Sounds.levelComplete();
 
     this.time.delayedCall(1000, () => {
       this.scene.stop('HUDScene');

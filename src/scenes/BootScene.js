@@ -51,11 +51,18 @@ class BootScene extends Phaser.Scene {
 
     // Brief delay then go to menu
     this.time.delayedCall(1200, () => {
-      loadingText.setText('Press any key!');
-      this.input.once('pointerdown', () => this.scene.start('MenuScene'));
-      this.input.keyboard.once('keydown', () => this.scene.start('MenuScene'));
+      loadingText.setText('Tap / Press any key!');
+
+      const go = () => {
+        // AudioContext requires a user-gesture to start; init here
+        window.Sounds && window.Sounds.init();
+        this.scene.start('MenuScene');
+      };
+
+      this.input.once('pointerdown', go);
+      this.input.keyboard.once('keydown', go);
       this.time.delayedCall(3000, () => {
-        if (this.scene.isActive('BootScene')) this.scene.start('MenuScene');
+        if (this.scene.isActive('BootScene')) go();
       });
     });
   }

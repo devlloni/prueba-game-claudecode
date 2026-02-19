@@ -78,6 +78,12 @@ class HUDScene extends Phaser.Scene {
       fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: '#FFFFFF'
     }).setOrigin(0.5).setDepth(51).setVisible(false);
 
+    // MUTE button (top-right corner, inside the bar)
+    this._muteTxt = this.add.text(width - 16, 22, '🔊', {
+      fontSize: '14px'
+    }).setOrigin(1, 0.5).setDepth(5).setInteractive({ useHandCursor: true });
+    this._muteTxt.on('pointerdown', () => this._toggleMute());
+
     // Listen to game events
     const game = this.scene.get('GameScene');
     game.events.on('score-update', (v) => this.setScore(v), this);
@@ -86,6 +92,9 @@ class HUDScene extends Phaser.Scene {
     game.events.on('paused',       ()  => this.showPause(), this);
     game.events.on('resumed',      ()  => this.hidePause(), this);
     game.events.on('time-update',  (v) => this.setTime(v), this);
+
+    // Keyboard: M = mute toggle
+    this.input.keyboard.on('keydown-M', () => this._toggleMute());
 
     // Keyboard: P = pause
     this.input.keyboard.on('keydown-P', () => {
@@ -129,5 +138,11 @@ class HUDScene extends Phaser.Scene {
     this.pauseOverlay.setVisible(false);
     this.pauseText.setVisible(false);
     this.resumeHint.setVisible(false);
+  }
+
+  _toggleMute() {
+    if (!window.Sounds) return;
+    const on = window.Sounds.toggle(); // true = sound ON
+    if (this._muteTxt) this._muteTxt.setText(on ? '🔊' : '🔇');
   }
 }
