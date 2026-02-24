@@ -49,6 +49,7 @@ const config = {
     GameOverScene,
     LevelCompleteScene,
     WinScene,
+    LeaderboardScene,
   ],
 
   callbacks: {

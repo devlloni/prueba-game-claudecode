@@ -71,10 +71,11 @@ class LevelCompleteScene extends Phaser.Scene {
     this.scene.stop('LevelCompleteScene');
     if (data.nextLevel < LEVELS.length) {
       this.scene.start('GameScene', {
-        level: data.nextLevel,
-        lives: data.lives,
-        score: data.score,
-        coins: data.coins
+        level:      data.nextLevel,
+        lives:      data.lives,
+        score:      data.score,
+        coins:      data.coins,
+        playerName: data.playerName || window.PLAYER_NAME || 'PLAYER'
       });
     } else {
       this.scene.start('WinScene', data);

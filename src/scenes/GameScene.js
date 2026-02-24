@@ -8,17 +8,18 @@ class GameScene extends Phaser.Scene {
   }
 
   init(data) {
-    this.levelIndex = data.level || 0;
-    this.lives      = data.lives !== undefined ? data.lives : 3;
-    this.score      = data.score || 0;
-    this.coins      = data.coins || 0;
-    this.gamePaused = false;
-    this.gameOver   = false;
-    this.levelDone  = false;
-    this.timer      = 400;
-    this.timerTick  = 0;
-    this.playerDead = false;
-    this.deathDelay = 0;
+    this.levelIndex  = data.level || 0;
+    this.lives       = data.lives !== undefined ? data.lives : 3;
+    this.score       = data.score || 0;
+    this.coins       = data.coins || 0;
+    this.playerName  = data.playerName || window.PLAYER_NAME || 'PLAYER';
+    this.gamePaused  = false;
+    this.gameOver    = false;
+    this.levelDone   = false;
+    this.timer       = 400;
+    this.timerTick   = 0;
+    this.playerDead  = false;
+    this.deathDelay  = 0;
     this.flagTouched = false;
     this.flagSlide   = false;
     this.flagSlideY  = 0;
@@ -26,7 +27,7 @@ class GameScene extends Phaser.Scene {
 
   create() {
     const ld = LEVELS[this.levelIndex];
-    if (!ld) { this.scene.start('WinScene', { score: this.score, coins: this.coins, lives: this.lives }); return; }
+    if (!ld) { this.scene.start('WinScene', { score: this.score, coins: this.coins, lives: this.lives, playerName: this.playerName }); return; }
 
     this.ld = ld;
     const W = ld.width, H = this.scale.height;
@@ -38,6 +39,9 @@ class GameScene extends Phaser.Scene {
     // ── Camera ──────────────────────────────────────────────────────────────────
     this.cameras.main.setBounds(0, 0, W, H);
     this.cameras.main.setBackgroundColor('#4FC3F7');
+
+    // Scroll mínimo: la cámara nunca puede retroceder (como en el NES original)
+    this._camMinScrollX = 0;
 
     // ── Background ──────────────────────────────────────────────────────────────
     this._buildBackground(ld, W, H);
@@ -329,13 +333,19 @@ class GameScene extends Phaser.Scene {
 
   _bounceTile(tile) {
     window.Sounds && window.Sounds.blockHit();
-    // Brief upward tween
+    // Golpe hacia arriba rápido estilo NES: sube 10px de golpe y vuelve a snap
+    const origY = tile.y;
     this.tweens.add({
       targets: tile,
-      y: tile.y - 8,
-      duration: 80,
+      y: origY - 10,
+      duration: 55,
+      ease: 'Power2.easeOut',
       yoyo: true,
-      onComplete: () => tile.refreshBody()
+      hold: 0,
+      onComplete: () => {
+        tile.y = origY;
+        tile.refreshBody();
+      }
     });
   }
 
@@ -529,14 +539,15 @@ class GameScene extends Phaser.Scene {
       this.scene.stop('HUDScene');
       this.mobile && this.mobile.destroy();
       this.scene.start('GameOverScene', {
-        level: this.levelIndex, score: this.score, coins: this.coins
+        level: this.levelIndex, score: this.score, coins: this.coins,
+        playerName: this.playerName
       });
     } else {
       // Restart current level
       window.Sounds && window.Sounds.stopBgMusic();
       this.scene.stop('HUDScene');
       this.mobile && this.mobile.destroy();
-      this.scene.restart({ level: this.levelIndex, lives: this.lives, score: this.score, coins: this.coins });
+      this.scene.restart({ level: this.levelIndex, lives: this.lives, score: this.score, coins: this.coins, playerName: this.playerName });
     }
   }
 
@@ -551,11 +562,12 @@ class GameScene extends Phaser.Scene {
       this.scene.stop('HUDScene');
       this.mobile && this.mobile.destroy();
       this.scene.start('LevelCompleteScene', {
-        level:     this.levelIndex,
-        nextLevel: this.levelIndex + 1,
-        score:     this.score,
-        coins:     this.coins,
-        lives:     this.lives
+        level:      this.levelIndex,
+        nextLevel:  this.levelIndex + 1,
+        score:      this.score,
+        coins:      this.coins,
+        lives:      this.lives,
+        playerName: this.playerName
       });
     });
   }
@@ -659,6 +671,19 @@ class GameScene extends Phaser.Scene {
         }
       }
     });
+
+    // ── Cámara unidireccional (no retrocede, estilo NES) ─────────────────────
+    // Actualizamos el límite izquierdo del bound en lugar de llamar setScrollX(),
+    // ya que setScrollX() interfiere con el sistema startFollow() de Phaser.
+    const camScrollX = this.cameras.main.scrollX;
+    if (camScrollX > this._camMinScrollX) {
+      this._camMinScrollX = camScrollX;
+      // El bound izquierdo avanza con la cámara → no puede retroceder
+      this.cameras.main.setBounds(
+        this._camMinScrollX, 0,
+        this.ld.width - this._camMinScrollX, this.scale.height
+      );
+    }
 
     // ── Background parallax ────────────────────────────────────────────────────
     if (this._bgImg) {

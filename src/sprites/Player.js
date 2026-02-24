@@ -1,6 +1,14 @@
 /**
- * Player - Hoppy the robot hero
- * States: small, big, star (invincible), dead
+ * Player - Hoppy el robot héroe.
+ * Estados: small, big, star (invencible), dead
+ *
+ * Física NES-accurate:
+ *   - Aceleración gradual al correr, fricción al soltar teclas
+ *   - Estado 'skid' (derrape) al cambiar de dirección bruscamente
+ *   - Salto variable: soltar rápido = salto corto; mantener = altura máxima
+ *   - Coyote time: permite saltar ~100ms después de caer de una plataforma
+ *   - Velocidad máxima horizontal clampeada (terminal velocity)
+ *   - Animación de caminar sincronizada con la velocidad real
  */
 class Player extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y) {
@@ -10,18 +18,27 @@ class Player extends Phaser.Physics.Arcade.Sprite {
 
     this.scene = scene;
     this.state = 'small'; // 'small' | 'big' | 'star' | 'dead'
-    this.starTimer = 0;
+    this.starTimer      = 0;
     this.starFlashTimer = 0;
-    this.invincibleTimer = 0; // brief invincibility after hit
-    this.isDead = false;
-    this.isGrounded = false;
-    this.facingRight = true;
-    this.walkFrame = 0;
-    this.walkTimer = 0;
-    this.jumpPressed = false;
-    this.jumpHeld = false;
+    this.invincibleTimer = 0;  // invencibilidad breve tras recibir daño
+    this.isDead       = false;
+    this.isGrounded   = false;
+    this.facingRight  = true;
+    this.walkFrame    = 0;
+    this.walkTimer    = 0;
+    this.jumpPressed  = false;
+    this.jumpHeld     = false;
 
-    // Physics body
+    // ── Coyote time ──────────────────────────────────────────────────────────
+    // Permite saltar durante COYOTE_TIME ms después de caer de una plataforma
+    this.coyoteTimer  = 0;
+    this.COYOTE_TIME  = 100; // ms
+
+    // ── Estado de derrape (skid) ──────────────────────────────────────────────
+    // Activo cuando el jugador presiona la dirección contraria a su movimiento
+    this.isSkidding   = false;
+
+    // ── Cuerpo físico ─────────────────────────────────────────────────────────
     this.setCollideWorldBounds(false);
     this.body.setMaxVelocityX(320);
     this.body.setMaxVelocityY(700);
@@ -32,16 +49,16 @@ class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   _setupAnimations() {
-    // No Phaser anims – we switch textures manually for pixel precision
+    // Sin Phaser anims – intercambiamos texturas manualmente para precisión pixel
   }
 
   _updateBody() {
     if (this.state === 'big' || this.state === 'star') {
-      // Big sprite: 22×32px. offset(3,6) + height 26 = 32 → bottom-aligned, no floating
+      // Sprite grande: 22×32px. offset(3,6) + altura 26 = 32 → alineado al suelo
       this.body.setSize(16, 26);
       this.body.setOffset(3, 6);
     } else {
-      // Small sprite: 18×18px. offset(3,4) + height 14 = 18 → bottom-aligned, no floating
+      // Sprite pequeño: 18×18px. offset(3,4) + altura 14 = 18 → alineado al suelo
       this.body.setSize(12, 14);
       this.body.setOffset(3, 4);
     }
@@ -49,23 +66,19 @@ class Player extends Phaser.Physics.Arcade.Sprite {
 
   grow() {
     if (this.state === 'small') {
-      // Save body.bottom before any change so we can keep feet planted
+      // Guardamos body.bottom antes del cambio para mantener los pies plantados
       const oldBottom = this.body.bottom;
 
-      // Kill any lingering damage-flash tween to avoid alpha stuck at 0.2
       this.scene.tweens.killTweensOf(this);
       this.setAlpha(1);
 
       this.state = 'big';
-      this._updateBody(); // body: size(16,26), offset(3,6)
+      this._updateBody();
 
-      // Force big texture NOW so displayHeight (32) is immediately correct.
-      // Without this, the body extends below the 18px small sprite for one frame → sinks.
+      // Forzamos la textura grande AHORA para que displayHeight (32) sea correcto
       this.setTexture('player_big_idle');
 
-      // Adjust y so body.bottom stays at the same world position (feet don't move).
-      // body.bottom = y - displayHeight/2 + offsetY + bodyH = y - 16 + 6 + 26 = y + 16
-      // Solve: y + 16 = oldBottom  →  y = oldBottom - 16
+      // Ajustamos y para que body.bottom quede en la misma posición
       this.y = oldBottom - 16;
 
       this.scene.tweens.add({
@@ -80,20 +93,20 @@ class Player extends Phaser.Physics.Arcade.Sprite {
 
   activateStar() {
     this.state = 'star';
-    this.starTimer = 10000; // 10 seconds
+    this.starTimer = 10000; // 10 segundos
     this._updateBody();
   }
 
   takeDamage() {
     if (this.isDead) return;
     if (this.invincibleTimer > 0) return;
-    if (this.state === 'star') return; // invincible
+    if (this.state === 'star') return; // invencible
 
     if (this.state === 'big') {
       this.state = 'small';
       this._updateBody();
-      this.invincibleTimer = 2000; // 2s grace
-      // Flash effect
+      this.invincibleTimer = 2000; // 2s de gracia
+      // Flash de daño
       this.scene.tweens.add({
         targets: this,
         alpha: { from: 0.2, to: 1 },
@@ -110,7 +123,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
   die() {
     if (this.isDead) return;
     this.isDead = true;
-    this.state = 'dead';
+    this.state  = 'dead';
     this.body.setVelocityX(0);
     this.body.setVelocityY(-500);
     this.body.setAllowGravity(true);
@@ -128,9 +141,17 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     const onGround = this.body.blocked.down;
     this.isGrounded = onGround;
 
-    // Star timer
+    // ── Coyote time ──────────────────────────────────────────────────────────
+    // En suelo: recargamos el timer. En el aire: lo decrementamos
+    if (onGround) {
+      this.coyoteTimer = this.COYOTE_TIME;
+    } else {
+      this.coyoteTimer = Math.max(0, this.coyoteTimer - delta);
+    }
+
+    // ── Timer de estrella ─────────────────────────────────────────────────────
     if (this.state === 'star') {
-      this.starTimer -= delta;
+      this.starTimer      -= delta;
       this.starFlashTimer -= delta;
       if (this.starFlashTimer <= 0) {
         this.setVisible(!this.visible);
@@ -145,33 +166,40 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       this.setVisible(true);
     }
 
-    // Invincibility timer
+    // ── Timer de invencibilidad ───────────────────────────────────────────────
     if (this.invincibleTimer > 0) {
       this.invincibleTimer -= delta;
     }
 
-    // Horizontal movement
+    // ── Input ─────────────────────────────────────────────────────────────────
     const left  = cursors.left.isDown  || (wasd && wasd.left.isDown)  || mobileInput.left;
     const right = cursors.right.isDown || (wasd && wasd.right.isDown) || mobileInput.right;
     const jump  = cursors.up.isDown    || (wasd && wasd.up.isDown)    ||
                   cursors.space.isDown || mobileInput.jump;
 
-    const accel = onGround ? 900 : 600;
-    const decel = onGround ? 1200 : 400;
+    const vx      = this.body.velocity.x;
+    const accel   = onGround ? 900 : 600;
+    const decel   = onGround ? 1200 : 400;
     const maxSpeed = 220;
 
+    // ── Detección de derrape (skid) ───────────────────────────────────────────
+    // Skid: en suelo, presionando la dirección contraria al movimiento actual
+    // con suficiente velocidad para que sea visible (>60 px/s)
+    this.isSkidding = onGround &&
+      ((left && !right && vx > 60) || (right && !left && vx < -60));
+
+    // ── Movimiento horizontal ─────────────────────────────────────────────────
     if (left && !right) {
       this.facingRight = false;
       this.body.setAccelerationX(-accel);
-      if (this.body.velocity.x > maxSpeed) this.body.setVelocityX(maxSpeed);
+      if (vx > maxSpeed) this.body.setVelocityX(maxSpeed);
     } else if (right && !left) {
       this.facingRight = true;
       this.body.setAccelerationX(accel);
-      if (this.body.velocity.x < -maxSpeed) this.body.setVelocityX(-maxSpeed);
+      if (vx < -maxSpeed) this.body.setVelocityX(-maxSpeed);
     } else {
       this.body.setAccelerationX(0);
-      // Decelerate
-      const vx = this.body.velocity.x;
+      // Fricción manual: desaceleración lineal
       if (Math.abs(vx) < 10) {
         this.body.setVelocityX(0);
       } else {
@@ -179,46 +207,71 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       }
     }
 
-    // Clamp speed
-    if (this.body.velocity.x > maxSpeed)  this.body.setVelocityX(maxSpeed);
+    // Clamp de velocidad máxima horizontal
+    if (this.body.velocity.x >  maxSpeed) this.body.setVelocityX( maxSpeed);
     if (this.body.velocity.x < -maxSpeed) this.body.setVelocityX(-maxSpeed);
 
-    // Jump
-    if (jump && !this.jumpPressed && onGround) {
+    // ── Salto ─────────────────────────────────────────────────────────────────
+    // Permitido en suelo O dentro de la ventana de coyote time
+    const canJump = onGround || this.coyoteTimer > 0;
+    if (jump && !this.jumpPressed && canJump) {
       this.body.setVelocityY(this.isBig() ? -580 : -520);
       this.jumpPressed = true;
-      this.jumpHeld = true;
+      this.jumpHeld    = true;
+      this.coyoteTimer = 0; // consumir coyote time
       window.Sounds && window.Sounds.jump();
     }
     if (!jump) {
       this.jumpPressed = false;
-      this.jumpHeld = false;
+      this.jumpHeld    = false;
     }
-    // Variable jump height: cut velocity if button released early
+
+    // ── Salto variable ────────────────────────────────────────────────────────
+    // Soltar el botón temprano corta la velocidad ascendente (delta-independiente)
     if (!jump && this.jumpHeld && this.body.velocity.y < -200) {
-      this.body.setVelocityY(this.body.velocity.y * 0.85);
+      const cutFactor = Math.pow(0.82, delta / 16.67);
+      this.body.setVelocityY(this.body.velocity.y * cutFactor);
     }
     if (onGround) this.jumpHeld = false;
 
-    // Flip sprite
+    // ── Flip de sprite ────────────────────────────────────────────────────────
     this.setFlipX(!this.facingRight);
 
-    // Update texture
+    // ── Actualización de textura / animación ──────────────────────────────────
     this._updateTexture(delta, onGround, left || right);
   }
 
   _updateTexture(delta, onGround, moving) {
-    const big = this.state === 'big';
+    const big  = this.state === 'big';
     const star = this.state === 'star';
-    const prefix = big || star ? 'player_big' : 'player';
-    const suffix  = star ? '_star' : '';
+    const prefix = (big || star) ? 'player_big' : 'player';
+    const vx   = Math.abs(this.body.velocity.x);
 
     if (!onGround) {
-      this.setTexture(`${prefix}_jump${star ? '' : ''}`);
-      if (star) this.setTexture('player_big_star');
+      // ── En el aire: textura de salto ─────────────────────────────────────
+      if (star) {
+        this.setTexture('player_big_star');
+      } else {
+        this.setTexture(`${prefix}_jump`);
+      }
+
+    } else if (this.isSkidding) {
+      // ── Derrape: walk2 con flip contrario al movimiento ──────────────────
+      // El personaje "frena" mirando en sentido opuesto a su velocidad (NES style)
+      if (star) {
+        this.setTexture('player_big_star');
+      } else {
+        this.setTexture(`${prefix}_walk2`);
+        // Override del flip: mirar contra la dirección de movimiento actual
+        this.setFlipX(this.body.velocity.x > 0); // moviendose a la derecha → cara a izquierda
+      }
+
     } else if (moving) {
+      // ── Caminando: frame rate sincronizado con la velocidad ───────────────
+      // A velocidad máxima (220) → ~70ms/frame; en reposo → ~180ms/frame
+      const interval = Math.max(70, 180 - vx * 0.5);
       this.walkTimer += delta;
-      if (this.walkTimer > 120) {
+      if (this.walkTimer > interval) {
         this.walkFrame = (this.walkFrame + 1) % 2;
         this.walkTimer = 0;
       }
@@ -227,7 +280,9 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       } else {
         this.setTexture(`${prefix}_walk${this.walkFrame + 1}`);
       }
+
     } else {
+      // ── Idle ─────────────────────────────────────────────────────────────
       if (star) {
         this.setTexture('player_big_star');
       } else {

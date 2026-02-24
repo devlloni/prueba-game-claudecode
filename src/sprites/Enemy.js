@@ -103,8 +103,15 @@ class Gloop extends Enemy {
     this.setTexture('gloop_flat');
     this.body.setSize(14, 6);
     this.body.setOffset(1, 10);
-    // Remove after brief squish
-    this.scene.time.delayedCall(400, () => this.destroy());
+    // Animación de aplastamiento: squish rápido y luego reposo
+    this.scene.tweens.add({
+      targets: this,
+      scaleX: { from: 1.6, to: 1.2 },
+      scaleY: { from: 0.25, to: 0.4 },
+      duration: 80,
+      ease: 'Power2.easeOut'
+    });
+    this.scene.time.delayedCall(400, () => { if (this.active) this.destroy(); });
   }
 }
 

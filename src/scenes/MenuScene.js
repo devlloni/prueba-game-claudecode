@@ -86,30 +86,39 @@ class MenuScene extends Phaser.Scene {
     });
 
     // ========= BUTTONS =========
-    const btnY = height * 0.52;
-    this._makeButton(width/2, btnY,       '▶  START GAME', () => this.startGame(0));
-    this._makeButton(width/2, btnY + 72,  '☆  HOW TO PLAY', () => this.showHelp());
+    const btnY = height * 0.46;
+    this._makeButton(width/2, btnY,        '▶  START GAME',  () => this.startGame(0));
+    this._makeButton(width/2, btnY + 62,   '★  HIGH SCORES', () => {
+      this.scene.stop('MenuScene');
+      this.scene.start('LeaderboardScene', { from: 'MenuScene' });
+    });
+    this._makeButton(width/2, btnY + 124,  '☆  HOW TO PLAY', () => this.showHelp());
 
-    // ========= CONTROLS INFO =========
-    const ctrlY = height * 0.72;
-    this.add.text(width/2, ctrlY, '🎮 CONTROLS', {
-      fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: '#FFDD44'
+    // ── Nombre del jugador ────────────────────────────────────────────────────
+    // Inicializar nombre global si no existe
+    if (!window.PLAYER_NAME) window.PLAYER_NAME = 'PLAYER';
+
+    const nameY = btnY + 188;
+    this.add.text(width/2, nameY, 'JUGADOR:', {
+      fontFamily: '"Press Start 2P", monospace', fontSize: '8px', color: '#888888'
     }).setOrigin(0.5);
 
-    const controls = [
-      '← → / A D : Move',
-      '↑ / W / SPACE : Jump',
-      'P : Pause',
-    ];
-    controls.forEach((txt, i) => {
-      this.add.text(width/2, ctrlY + 22 + i*18, txt, {
-        fontFamily: '"Press Start 2P", monospace', fontSize: '8px', color: '#CCCCCC'
-      }).setOrigin(0.5);
-    });
+    this._nameDisplay = this.add.text(width/2, nameY + 22, window.PLAYER_NAME, {
+      fontFamily: '"Press Start 2P", monospace', fontSize: '11px', color: '#88FF88',
+      stroke: '#004400', strokeThickness: 2
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
-    // Mobile note
-    this.add.text(width/2, height - 30, 'Mobile: Virtual D-Pad appears on touch devices', {
-      fontFamily: '"Press Start 2P", monospace', fontSize: '6px', color: '#888888'
+    const editHint = this.add.text(width/2, nameY + 40, '[ click para cambiar nombre ]', {
+      fontFamily: '"Press Start 2P", monospace', fontSize: '6px', color: '#446644'
+    }).setOrigin(0.5);
+
+    this._nameDisplay.on('pointerover', () => editHint.setColor('#88BB88'));
+    this._nameDisplay.on('pointerout',  () => editHint.setColor('#446644'));
+    this._nameDisplay.on('pointerdown', () => this._showNameInput());
+
+    // Nota de controles (hint breve en el fondo)
+    this.add.text(width/2, height - 18, '← → Mover  |  ↑/SPACE Saltar  |  P Pausa  |  ☆ HOW TO PLAY para más', {
+      fontFamily: '"Press Start 2P", monospace', fontSize: '5px', color: '#556688'
     }).setOrigin(0.5);
 
     // ========= COIN RAIN =========
@@ -206,7 +215,62 @@ class MenuScene extends Phaser.Scene {
     });
   }
 
+  // ── Input de nombre de jugador ────────────────────────────────────────────
+  _showNameInput() {
+    let done = false;
+
+    // Input HTML superpuesto sobre el canvas para soporte de teclado completo
+    const inputEl = document.createElement('input');
+    inputEl.type        = 'text';
+    inputEl.maxLength   = 10;
+    inputEl.value       = window.PLAYER_NAME || '';
+    inputEl.placeholder = 'TU NOMBRE';
+    inputEl.style.cssText = [
+      'position:fixed', 'top:50%', 'left:50%',
+      'transform:translate(-50%,-50%)',
+      'font-family:"Press Start 2P",monospace',
+      'font-size:14px', 'padding:12px 20px',
+      'background:#07122e', 'color:#FFD700',
+      'border:3px solid #FFD700', 'border-radius:8px',
+      'text-align:center', 'outline:none',
+      'z-index:9999', 'text-transform:uppercase',
+      'letter-spacing:3px', 'width:220px',
+      'box-shadow:0 0 20px rgba(255,215,0,0.3)'
+    ].join(';');
+
+    document.body.appendChild(inputEl);
+    inputEl.focus();
+    inputEl.select();
+
+    const confirm = () => {
+      if (done) return;
+      done = true;
+      const name = (inputEl.value.trim() || 'PLAYER').toUpperCase().substring(0, 10);
+      window.PLAYER_NAME = name;
+      if (this._nameDisplay && this._nameDisplay.active) {
+        this._nameDisplay.setText(name);
+      }
+      if (document.body.contains(inputEl)) document.body.removeChild(inputEl);
+    };
+
+    inputEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { confirm(); }
+      if (e.key === 'Escape') {
+        done = true;
+        if (document.body.contains(inputEl)) document.body.removeChild(inputEl);
+      }
+      e.stopPropagation(); // evitar que Phaser capture las teclas
+    });
+    inputEl.addEventListener('blur', confirm);
+  }
+
   startGame(level) {
-    this.scene.start('GameScene', { level: level || 0, lives: 3, score: 0, coins: 0 });
+    this.scene.start('GameScene', {
+      level:      level || 0,
+      lives:      3,
+      score:      0,
+      coins:      0,
+      playerName: window.PLAYER_NAME || 'PLAYER'
+    });
   }
 }
